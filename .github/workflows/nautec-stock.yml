@@ -1,5 +1,4 @@
 name: Nautec lager
-# GitHub kan fördröja körningar; nästa körning läser missade ändringsfiler i ordning.
 on:
   schedule:
     - cron: '*/15 * * * *'
