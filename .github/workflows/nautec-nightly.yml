@@ -1,0 +1,33 @@
+name: Nautec nattlig katalog
+# 22:37 UTC: 23:37 vintertid, 00:37 sommartid, efter Nautecs uppdatering.
+on:
+  schedule:
+    - cron: '37 22 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: nautec-sync
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      NAUTEC_FTP_HOST: ${{ secrets.NAUTEC_FTP_HOST }}
+      NAUTEC_FTP_USER: ${{ secrets.NAUTEC_FTP_USER }}
+      NAUTEC_FTP_PASSWORD: ${{ secrets.NAUTEC_FTP_PASSWORD }}
+      NAUTEC_FTP_CERT_SHA256: ${{ secrets.NAUTEC_FTP_CERT_SHA256 }}
+      NAUTEC_IMPORT_TOKEN: ${{ secrets.NAUTEC_IMPORT_TOKEN }}
+      NAUTEC_IMPORT_URL: ${{ secrets.NAUTEC_IMPORT_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Importera katalogen
+        run: python3 runner.py --auto catalogue
+      - name: Ny lagerbas om fullfilen är nyare
+        run: python3 runner.py --auto stock_full
+      - name: Läs efterföljande lagerändringar
+        run: python3 runner.py --auto stock
