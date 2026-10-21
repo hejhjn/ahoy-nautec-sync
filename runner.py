@@ -171,12 +171,13 @@ def auto_stock(ftp):
     cursor_dt = dt.datetime.fromisoformat(cursor.replace("Z", "+00:00"))
     listing = mlsd_files(ftp, STOCK_DELTA_DIR)
     deltas = []
+    now = dt.datetime.now(dt.timezone.utc)
     for name in listing:
         match = STOCK_DELTA_RE.match(name)
         if not match:
             continue
         stamp = dt.datetime.strptime(match.group(1), "%Y%m%d%H%M%S").replace(tzinfo=dt.timezone.utc)
-        if stamp > cursor_dt:
+        if cursor_dt < stamp <= now:
             deltas.append((stamp, name))
     deltas.sort()
     for stamp, name in deltas[:DELTA_CAP]:
