@@ -24,7 +24,7 @@ jobs:
       - name: Återprova endast originaldel 2
         shell: python
         run: |
-          import runner, json, urllib.request, urllib.error
+          import sys, os; sys.path.insert(0, os.getcwd()); import runner, json, urllib.request, urllib.error
           names = ['web_cataloginventitems_sv_3.xml', 'web_cataloginventitems_sv_4.xml']
           with runner.VerifiedFTP(context=runner.tls_context(), timeout=30) as ftp:
               ftp.connect_verified()
