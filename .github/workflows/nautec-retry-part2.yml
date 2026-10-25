@@ -1,0 +1,48 @@
+name: Nautec säker återprovning del 2
+on: workflow_dispatch
+permissions:
+  contents: read
+concurrency:
+  group: nautec-sync
+  cancel-in-progress: false
+jobs:
+  retry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      NAUTEC_FTP_HOST: ${{ secrets.NAUTEC_FTP_HOST }}
+      NAUTEC_FTP_USER: ${{ secrets.NAUTEC_FTP_USER }}
+      NAUTEC_FTP_PASSWORD: ${{ secrets.NAUTEC_FTP_PASSWORD }}
+      NAUTEC_FTP_CERT_SHA256: ${{ secrets.NAUTEC_FTP_CERT_SHA256 }}
+      NAUTEC_IMPORT_TOKEN: ${{ secrets.NAUTEC_IMPORT_TOKEN }}
+      NAUTEC_IMPORT_URL: https://project--3264c395-eebb-41d9-b210-665115b94c3a-dev.lovable.app/api/public/nautec/import
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Återprova endast originaldel 2
+        shell: python
+        run: |
+          import runner, json, urllib.request, urllib.error
+          names = ['web_cataloginventitems_sv_3.xml', 'web_cataloginventitems_sv_4.xml']
+          with runner.VerifiedFTP(context=runner.tls_context(), timeout=30) as ftp:
+              ftp.connect_verified()
+              listing = runner.mlsd_files(ftp, runner.CATALOGUE_DIR)
+              all_names = [n for n in listing if runner.CATALOGUE_RE.match(n)]
+              stamp = max(runner.iso_from_modify(listing[n]) for n in all_names)
+              if stamp != '2026-10-24T18:30:55Z':
+                  raise ValueError('original_snapshot_unavailable_no_import')
+              batch = {'kind':'catalogue','sourceTimestamp':stamp,'batchKey':'catalogue-20261024-part2','expectedFiles':names,'partial':True,'files':[{'name':n,'xml':runner.download(ftp,n,listing[n])} for n in names]}
+              after = runner.mlsd_files(ftp, runner.CATALOGUE_DIR)
+              if any(listing[n].get(k) != after.get(n,{}).get(k) for n in names for k in ('size','modify')):
+                  raise ValueError('snapshot_changed_no_import')
+              req = urllib.request.Request(runner.os.environ['NAUTEC_IMPORT_URL'],data=json.dumps(batch).encode(),headers={'Authorization':'Bearer '+runner.os.environ['NAUTEC_IMPORT_TOKEN'],'Content-Type':'application/json'})
+              try:
+                  with urllib.request.build_opener(runner.NoRedirect()).open(req,timeout=120) as response:
+                      result=json.load(response)
+              except urllib.error.HTTPError as error:
+                  result=json.load(error)
+              print('Retry result:', json.dumps({k:result.get(k) for k in ('ok','databaseCode','error','result')}))
+              if not result.get('ok'):
+                  raise ValueError('retry_not_acknowledged')
